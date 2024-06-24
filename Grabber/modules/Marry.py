@@ -3,7 +3,7 @@ from pyrogram import filters, Client, types as t
 from Grabber import Grabberu as bot
 from Grabber import user_collection, collection
 
-DEVS = (6590287973)
+DEVS = (5116239739)
 
 async def get_unique_characters(receiver_id, target_rarities=['🟢 Common' , '🔵 Medium' , '🟠 Rare' , '🟡 Legendary']):
     try:
@@ -47,7 +47,7 @@ async def dice(_: bot, message: t.Message):
             await user_collection.update_one({'id': receiver_id}, {'$push': {'characters': {'$each': unique_characters}}})
             img_urls = [character['img_url'] for character in unique_characters]
             captions = [
-                f"congratulations! {mention} you are now married your girl is ready on bed sorry mean harem 💍!\n"
+                f"congratulations! {mention} you have married your girl and is ready on bed sorry i mean harem 💍!\n"
                 f"Name: {character['name']}\n"
                 f"Rarity: {character['rarity']}\n"
                 f"Anime: {character['anime']}\n"
@@ -87,5 +87,5 @@ async def dice(_: bot, message: t.Message):
             return
 
         else:
-            await message.reply_text(f"fuck she is rejected your married proposal and run away 🤡", quote=True)
+            await message.reply_text(f"she rejected your marriage proposal and ran away 🤡", quote=True)
             return
