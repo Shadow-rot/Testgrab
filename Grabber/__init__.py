@@ -14,18 +14,18 @@ logging.getLogger('httpx').setLevel(logging.WARNING)
 logging.getLogger("pyrate_limiter").setLevel(logging.ERROR)
 LOGGER = logging.getLogger("name")
 
-OWNER_ID = "6138142369"
-sudo_users = ["6138142369", "6143079414"]
-GROUP_ID = "-1002083898719"
-TOKEN = "7287151907:AAGg_ub-omJkMG7k5jb6wGhLIOQPGHjw-V4"
+OWNER_ID = "5116239739"
+sudo_users = ["5116239739","6691228672"]
+GROUP_ID = "-1002010986967"
+TOKEN = "6770670571:AAF7G93zLKRgKPI9CLf5NqJs0imW2IiVMS"
 mongo_url = "mongodb+srv://Srikanta:srikanta@cluster0.xzbil3m.mongodb.net/?retryWrites=true&w=majority"
 PHOTO_URL = ["https://graph.org/file/cafd84de9c790da6ce770.jpg", "https://graph.org/file/407a498548a0f4c6881b3.jpg"]
-SUPPORT_CHAT = "https://t.me/Midexoz"
-UPDATE_CHAT = "https://t.me/MidexozBotUpdates"
-BOT_USERNAME = "@Snatch_Your_Waifu_Robot"
+SUPPORT_CHAT = "https://t.me/slavesupport"
+UPDATE_CHAT = "https://t.me/slave_waifu_database"
+BOT_USERNAME = "@slavge_waifu_bot"
 CHARA_CHANNEL_ID = ""
-api_id = "20457610"
-api_hash = "b7de0dfecd19375d3f84dbedaeb92537"
+api_id = "27744639"
+api_hash = "a5e9da62bcd7cc761de2490c52c89ccf"
 
 application = Application.builder().token(TOKEN).build()
 Grabberu = Client("Grabber", api_id, api_hash, bot_token=TOKEN)
