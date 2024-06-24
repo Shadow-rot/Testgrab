@@ -93,7 +93,7 @@ async def button(update: Update, context: CallbackContext) -> None:
 ***/claim - for daily rewards***
 ***/bal - to check current balance***
 ***/profile - to check your profile rank***
-***/wsell- to sell any waifu and get some tokens***
+***/xsell- to sell any waifu and get some tokens***
 ***/xfight- fight dungeons and get tokens and other rewards***
 ***/rob- to robber any person  tokens ( rob only who have low tokens)***
 ***/gamble- to bet the tokens with loss or profit***
