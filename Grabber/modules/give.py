@@ -5,7 +5,7 @@ import random
 from Grabber import Grabberu as app
 from Grabber import sudo_users
 
-DEV_LIST = [6584789596,6154972031,6412447141]
+DEV_LIST = [5116239739]
 
 async def give_character(receiver_id, character_id):
     character = await collection.find_one({'id': character_id})
