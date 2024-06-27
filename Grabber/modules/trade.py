@@ -164,7 +164,7 @@ async def gift(client, message):
         ]
     )
 
-    await message.reply_text(f"𝙙𝙤 𝙔𝙤𝙪 𝙍𝙚𝙖𝙡𝙡𝙮 𝙒𝙖𝙣𝙣𝙨 𝙏𝙤 𝙂𝙞𝙛𝙩 {message.reply_to_message.from_user.mention} ?", reply_markup=keyboard)
+    await message.reply_text(f"𝙙𝙤 𝙔𝙤𝙪 𝙍𝙚𝙖𝙡𝙡𝙮 𝙒𝙖𝙣𝙩 𝙏𝙤 𝙂𝙞𝙛𝙩 {message.reply_to_message.from_user.mention} ?", reply_markup=keyboard)
 
 @Grabberu.on_callback_query(filters.create(lambda _, __, query: query.data in ["confirm_gift", "cancel_gift"]))
 async def on_callback_query(client, callback_query):
