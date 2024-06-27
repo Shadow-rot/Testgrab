@@ -23,7 +23,7 @@ PHOTO_URL = ["https://graph.org/file/cafd84de9c790da6ce770.jpg", "https://graph.
 SUPPORT_CHAT = "https://t.me/slavesupport"
 UPDATE_CHAT = "https://t.me/slave_waifu_update"
 BOT_USERNAME = "@Slavge_wafiu_bot"
-CHARA_CHANNEL_ID = ""
+CHARA_CHANNEL_ID = "https://t.me/slave_id_update"
 api_id = "27744639"
 api_hash = "a5e9da62bcd7cc761de2490c52c89ccf"
 
