@@ -46,7 +46,7 @@ async def change_time_sudo(update: Update, context: CallbackContext) -> None:
 
     try:
         if user.id not in sudo_user_ids:
-            await update.message.reply_text('You do not have permission to use this command.')
+            await update.message.reply_text('You do not have the permission to use this command.')
             return
 
         args = context.args
