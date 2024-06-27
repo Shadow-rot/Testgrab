@@ -17,7 +17,7 @@ LOGGER = logging.getLogger("name")
 OWNER_ID = "5116239739"
 sudo_users = ["5116239739", "6691228672"]
 GROUP_ID = "-1002010986967"
-TOKEN = "6770670571:AAF7G93zLKRgKPI9CLf5NqJs0imW2IiVMS"
+TOKEN = "6770670571:AAF7G93zLKRgKPI9CLf5NqJs0imW2IiVMSM"
 mongo_url = "mongodb+srv://Srikanta:srikanta@cluster0.xzbil3m.mongodb.net/?retryWrites=true&w=majority"
 PHOTO_URL = ["https://graph.org/file/cafd84de9c790da6ce770.jpg", "https://graph.org/file/407a498548a0f4c6881b3.jpg"]
 SUPPORT_CHAT = "https://t.me/slavesupport"
