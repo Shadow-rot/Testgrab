@@ -32,7 +32,7 @@ async def start(update: Update, context: CallbackContext) -> None:
         
         
         caption = f"""
-     ʜᴏᴡ ᴀʀᴇ ʏᴏᴜ I'm Pick Your waifu b. I am a Waifu Collect
+     ʜᴏᴡ ᴀʀᴇ ʏᴏᴜ I'm Pick Your waifu bot. I am a Waifu Collect
 based Game Bot! Want to get help? Click on the use button! Want to request/report bugs?
 Click on the Support button!
 
@@ -93,7 +93,7 @@ async def button(update: Update, context: CallbackContext) -> None:
 ***/claim - for daily rewards***
 ***/bal - to check current balance***
 ***/profile - to check your profile rank***
-***/xsell- to sell any waifu and get some tokens***
+***/wsell- to sell any waifu and get some tokens***
 ***/xfight- fight dungeons and get tokens and other rewards***
 ***/rob- to robber any person  tokens ( rob only who have low tokens)***
 ***/gamble- to bet the tokens with loss or profit***
@@ -106,7 +106,7 @@ async def button(update: Update, context: CallbackContext) -> None:
     elif query.data == 'back':
 
         caption = f"""
-     ʜᴏᴡ ᴀʀᴇ ʏᴏᴜ I'm Pick Your waifu b. I am a Waifu Collect
+     ʜᴏᴡ ᴀʀᴇ ʏᴏᴜ I'm Pick Your waifu bot. I am a Waifu Collect
 based Game Bot! Want to get help? Click on the use button! Want to request/report bugs?
 Click on the Support button!
 
