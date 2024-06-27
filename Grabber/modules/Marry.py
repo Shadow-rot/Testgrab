@@ -47,7 +47,7 @@ async def dice(_: bot, message: t.Message):
             await user_collection.update_one({'id': receiver_id}, {'$push': {'characters': {'$each': unique_characters}}})
             img_urls = [character['img_url'] for character in unique_characters]
             captions = [
-                f"congratulations! {mention} you have married your girl and is ready on bed sorry i mean harem 💍!\n"
+                f"congratulations! {mention} You have married with your girl and is ready on her bed sorry i mean harem 💍!\n"
                 f"Name: {character['name']}\n"
                 f"Rarity: {character['rarity']}\n"
                 f"Anime: {character['anime']}\n"
@@ -74,7 +74,7 @@ async def dice(_: bot, message: t.Message):
 
             img_urls = [character['img_url'] for character in unique_characters]
             captions = [
-                f"congratulations! {mention} You are now married your girl is ready on bed sorry i mean harem  💍!\n"
+                f"congratulations! {mention} You have married with your girl and is ready on her bed sorry i mean harem  💍!\n"
                 f"Name: {character['name']}\n"
                 f"Rarity: {character['rarity']}\n"
                 f"Anime: {character['anime']}\n"
