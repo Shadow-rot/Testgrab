@@ -17,9 +17,9 @@ async def harem(update: Update, context: CallbackContext, page=0) -> None:
     user = await user_collection.find_one({'id': user_id})
     if not user:
         if update.message:
-            await update.message.reply_text('𝙔𝙤𝙪 𝙃𝙖𝙫𝙚 𝙉𝙤𝙩 𝙂𝙧𝙖𝙗 𝙖𝙣𝙮 𝙒𝙖𝙞𝙛𝙪 𝙔𝙚𝙩...')
+            await update.message.reply_text('𝙔𝙤𝙪 𝙃𝙖𝙫𝙚 𝙉𝙤𝙩 𝙂𝙧𝙖𝙗𝙗𝙚𝙙 𝙖𝙣𝙮 𝙒𝙖𝙞𝙛𝙪 𝙔𝙚𝙩...')
         else:
-            await update.callback_query.edit_message_text('𝙔𝙤𝙪 𝙃𝙖𝙫𝙚 𝙉𝙤𝙩 𝙂𝙧𝙖𝙗 𝙖𝙣𝙮 𝙒𝙖𝙞𝙛𝙪 𝙔𝙚𝙩...')
+            await update.callback_query.edit_message_text('𝙔𝙤𝙪 𝙃𝙖𝙫𝙚 𝙉𝙤𝙩 𝙂𝙧𝙖𝙗𝙗𝙚𝙙 𝙖𝙣𝙮 𝙒𝙖𝙞𝙛𝙪 𝙔𝙚𝙩...')
         return
 
     characters = sorted(user['characters'], key=lambda x: (x['anime'], x['id']))
