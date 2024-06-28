@@ -226,7 +226,7 @@ async def fav(update: Update, context: CallbackContext) -> None:
 
     character = next((c for c in user['characters'] if c['id'] == character_id), None)
     if not character:
-        await update.message.reply_text('𝙏𝙝𝙞𝙨 𝙒𝙖𝙞𝙛𝙪 𝙞𝙨 𝙉𝙤𝙩 𝙄𝙣 𝙮𝙤𝙪𝙧 𝙒𝙖𝙞𝙛𝙪'𝙨 𝙡𝙞𝙨𝙩')
+        await update.message.reply_text("𝙏𝙝𝙞𝙨 𝙒𝙖𝙞𝙛𝙪 𝙞𝙨 𝙉𝙤𝙩 𝙄𝙣 𝙮𝙤𝙪𝙧 𝙒𝙖𝙞𝙛𝙪'𝙨 𝙡𝙞𝙨𝙩")
         return
 
     
