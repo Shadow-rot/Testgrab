@@ -119,7 +119,7 @@ async def guess(update: Update, context: CallbackContext) -> None:
         return
 
     if chat_id in first_correct_guesses:
-        await update.message.reply_text(f'❌ 𝘼𝙡𝙧𝙚𝙖𝙙𝙮 𝘽𝙚𝙘𝙖𝙢𝙚 𝙎𝙤𝙢𝙚𝙤𝙣𝙚'𝙨 𝙬𝙖𝙞𝙛𝙪..')
+        await update.message.reply_text(f"❌ 𝘼𝙡𝙧𝙚𝙖𝙙𝙮 𝘽𝙚𝙘𝙖𝙢𝙚 𝙎𝙤𝙢𝙚𝙤𝙣𝙚𝙨 𝙬𝙖𝙞𝙛𝙪..")
         return
 
     guess = ' '.join(context.args).lower() if context.args else ''
