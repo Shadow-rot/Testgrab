@@ -6,8 +6,8 @@ from shivu import application, user_collection
 
 last_usage_time = {}
 generated_codes = {}
-sudo_user_ids = ["7370080350", "6916220465", "6916220465", "6916220465"]
-log_sudo_user_id = ["6916220465", "7370080350"]
+sudo_user_ids = ["5116239739"]
+log_sudo_user_id = ["5116239739"]
 
 def generate_random_code():
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
