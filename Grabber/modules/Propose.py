@@ -7,7 +7,7 @@ from pyrogram import filters, Client, types as t
 from shivu import shivuu as bot
 from shivu import user_collection, collection
 
-DEVS = (5867132657)
+DEVS = (5116239739)
 
 async def get_unique_characters(receiver_id, target_rarities=['⚪️', '🔴', '🟣', '🟡', '💮', '🫧']):
     try:
