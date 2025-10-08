@@ -3,7 +3,7 @@ from telegram.constants import ParseMode
 import random
 import string
 import datetime
-from shivu import application, user_collection, collection
+from Grabber import application, user_collection, collection
 
 # Dictionary to store user last usage time for daily_code command
 last_usage_time = {}
