@@ -1,4 +1,8 @@
-from pyrogram import Client, filters
+import logging
+from typing import Tuple, Optional
+
+from pyrogram import filters
+from pyrogram.types import Message
 from Grabber import (
     db,
     collection,
@@ -6,145 +10,212 @@ from Grabber import (
     shivuu as app,
     sudo_users,
 )
-import asyncio
-import logging
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-DEV_LIST = sudo_users  # use your sudo list
+# Use your sudo list (fallback to provided list if not present)
+DEV_LIST = sudo_users if 'sudo_users' in globals() else [5147822244]
 
-# --------------------------- Helper: Give Character --------------------------- #
 
-async def give_character(receiver_id: int, character_id: str):
-    """Give a character to a specific user ID."""
-    character = await collection.find_one(
-        {"id": character_id},
-        {"_id": 0, "id": 1, "rarity": 1, "anime": 1, "name": 1, "img_url": 1},
+# -------------------- Helper functions -------------------- #
+async def _fetch_character_min(character_id: str) -> Optional[dict]:
+    """Return a small dict for character or None."""
+    char = await collection.find_one(
+        {'id': character_id},
+        projection={'_id': 0, 'id': 1, 'name': 1, 'anime': 1, 'rarity': 1, 'img_url': 1}
+    )
+    return char
+
+
+async def _ensure_user_doc(user_id: int):
+    """Ensure the user doc exists with characters array."""
+    await user_collection.update_one(
+        {'id': user_id},
+        {'$setOnInsert': {'id': user_id, 'characters': []}},
+        upsert=True
     )
 
-    if not character:
+
+# -------------------- /give -------------------- #
+async def give_character(receiver_id: int, character_id: str) -> Tuple[str, str, bool]:
+    """
+    Add a character object to user's characters array.
+    Returns: (img_url, caption, added_flag)
+    Raises ValueError if character not found.
+    """
+    char = await _fetch_character_min(character_id)
+    if not char:
         raise ValueError("❌ Character not found.")
 
-    # Ensure user document exists
-    await user_collection.update_one(
-        {"id": receiver_id}, {"$setOnInsert": {"characters": []}}, upsert=True
+    # ensure user doc exists
+    await _ensure_user_doc(receiver_id)
+
+    # use $addToSet to avoid duplicates (object equality)
+    res = await user_collection.update_one(
+        {'id': receiver_id},
+        {'$addToSet': {'characters': char}}
     )
 
-    # Add character (prevent duplicates)
-    await user_collection.update_one(
-        {"id": receiver_id},
-        {"$addToSet": {"characters": character}},
-    )
+    added = (res.modified_count > 0)  # True if actually added (not already present)
 
     caption = (
-        f"✅ <b>Character Given Successfully!</b>\n\n"
+        f"✅ <b>Character Given</b>\n\n"
         f"👤 <b>User:</b> <code>{receiver_id}</code>\n"
-        f"🎭 <b>Name:</b> {character['name']}\n"
-        f"🎬 <b>Anime:</b> {character['anime']}\n"
-        f"💫 <b>Rarity:</b> {character['rarity']}\n"
-        f"🆔 <b>ID:</b> <code>{character['id']}</code>"
+        f"🎭 <b>Name:</b> {char.get('name')}\n"
+        f"🎬 <b>Anime:</b> {char.get('anime')}\n"
+        f"💫 <b>Rarity:</b> {char.get('rarity')}\n"
+        f"🆔 <b>ID:</b> <code>{char.get('id')}</code>\n\n"
+        + ("➕ Added to user's collection." if added else "⚠️ User already had this character.")
     )
 
-    return character.get("img_url"), caption
+    img_url = char.get('img_url')
+    return img_url, caption, added
 
 
-@app.on_message(filters.command("give") & filters.reply & filters.user(DEV_LIST))
-async def give_character_command(client: Client, message):
-    """Give a character to the replied user."""
-    if not message.reply_to_message:
-        await message.reply_text("⚠️ Reply to a user to give a character.")
+@app.on_message(filters.command("give") & filters.reply)
+async def give_character_command(client, message: Message):
+    # permission check
+    sender_id = message.from_user.id
+    if sender_id not in DEV_LIST:
+        await message.reply_text("⛔ You are not authorized to use this command.")
         return
 
-    try:
-        _, character_id = message.text.split(maxsplit=1)
-    except ValueError:
-        await message.reply_text("❌ Usage: <code>/give &lt;character_id&gt;</code>")
+    # must reply to a user message
+    if not message.reply_to_message or not message.reply_to_message.from_user:
+        await message.reply_text("⚠️ Reply to a user's message to give a character.")
         return
 
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.reply_text("❌ Usage: /give <character_id>  (reply to target user's message)")
+        return
+
+    character_id = parts[1].strip()
     receiver_id = message.reply_to_message.from_user.id
 
     try:
-        img_url, caption = await give_character(receiver_id, character_id)
-        if img_url:
-            await message.reply_photo(img_url, caption=caption, quote=True)
-        else:
-            await message.reply_text(caption, quote=True)
+        img_url, caption, added = await give_character(receiver_id, character_id)
+
+        # Try to send preview with image; fallback to text if sending fails
+        try:
+            if img_url:
+                # try photo first; if it fails (not an image), send as document
+                try:
+                    await message.reply_photo(photo=img_url, caption=caption, parse_mode='html', quote=True)
+                except Exception:
+                    await message.reply_document(document=img_url, caption=caption, parse_mode='html', quote=True)
+            else:
+                await message.reply_text(caption, parse_mode='html', quote=True)
+        except Exception as exc_send:
+            logger.exception("Failed to send preview in /give")
+            # Even if preview fails, still inform admin with caption
+            await message.reply_text(caption, parse_mode='html', quote=True)
+
+    except ValueError as ve:
+        await message.reply_text(str(ve))
     except Exception as e:
-        logger.exception("Give command error:")
-        await message.reply_text(f"❌ Error: {e}")
+        logger.exception("Error in give_character_command")
+        await message.reply_text("❌ An unexpected error occurred while giving the character.")
 
-# --------------------------- Helper: Add All Characters --------------------------- #
 
-async def add_all_characters_for_user(user_id: int):
-    """Give all characters in collection to a user (only new ones)."""
-    all_characters = await collection.find(
-        {}, {"_id": 0, "id": 1, "name": 1, "anime": 1, "rarity": 1, "img_url": 1}
-    ).to_list(length=None)
+# -------------------- /add -------------------- #
+async def add_all_characters_for_user(user_id: int) -> str:
+    """
+    Adds all characters from global collection to user's characters array (only new ones).
+    Returns summary string.
+    """
+    # fetch all chars (only required fields)
+    all_chars = await collection.find({}, projection={'_id': 0, 'id': 1, 'name': 1, 'anime': 1, 'rarity': 1, 'img_url': 1}).to_list(length=None)
+    if not all_chars:
+        return "⚠️ No characters found in the database."
 
-    if not all_characters:
-        return "⚠️ No characters found in database."
+    # ensure user doc and get current count
+    await _ensure_user_doc(user_id)
+    user_doc = await user_collection.find_one({'id': user_id}, projection={'_id': 0, 'characters': 1})
+    current = user_doc.get('characters') or []
+    current_ids = {c['id'] for c in current}
 
-    # ensure user doc
+    # prepare only new characters
+    new_chars = [c for c in all_chars if c['id'] not in current_ids]
+    if not new_chars:
+        return f"ℹ️ No new characters to add for user <code>{user_id}</code>."
+
+    # push new chars
     await user_collection.update_one(
-        {"id": user_id}, {"$setOnInsert": {"characters": []}}, upsert=True
+        {'id': user_id},
+        {'$push': {'characters': {'$each': new_chars}}}
     )
 
-    # $addToSet with $each ensures no duplicates
-    await user_collection.update_one(
-        {"id": user_id},
-        {"$addToSet": {"characters": {"$each": all_characters}}},
-    )
-
-    return f"✅ All characters have been added for user <code>{user_id}</code>."
+    return f"✅ Added {len(new_chars)} new characters to user <code>{user_id}</code>."
 
 
-@app.on_message(filters.command("add") & filters.user(DEV_LIST))
-async def add_characters_command(client: Client, message):
-    """Add all characters for yourself (admin only)."""
-    user_id = message.from_user.id
-    try:
-        result = await add_all_characters_for_user(user_id)
-        await message.reply_text(result)
-    except Exception as e:
-        logger.exception("Add command error:")
-        await message.reply_text(f"❌ Failed: {e}")
-
-# --------------------------- Helper: Kill Character --------------------------- #
-
-async def kill_character(receiver_id: int, character_id: str):
-    """Remove a specific character from user."""
-    result = await user_collection.update_one(
-        {"id": receiver_id},
-        {"$pull": {"characters": {"id": character_id}}},
-    )
-
-    if result.modified_count == 0:
-        raise ValueError("⚠️ Character not found in user's list.")
-
-    return (
-        f"🗑️ Successfully removed character <code>{character_id}</code> "
-        f"from user <code>{receiver_id}</code>."
-    )
-
-
-@app.on_message(filters.command("kill") & filters.reply & filters.user(DEV_LIST))
-async def remove_character_command(client: Client, message):
-    """Remove a character from a replied user."""
-    if not message.reply_to_message:
-        await message.reply_text("⚠️ Reply to a user to remove a character.")
+@app.on_message(filters.command("add"))
+async def add_characters_command(client, message: Message):
+    sender_id = message.from_user.id
+    if sender_id not in DEV_LIST:
+        await message.reply_text("⛔ You are not authorized to use this command.")
         return
 
+    # Optional argument: /add <target_user_id>
+    parts = message.text.split()
+    if len(parts) >= 2:
+        try:
+            target_user_id = int(parts[1])
+        except ValueError:
+            await message.reply_text("❌ Invalid user id. Usage: /add [user_id]")
+            return
+    else:
+        target_user_id = message.from_user.id
+
     try:
-        _, character_id = message.text.split(maxsplit=1)
-    except ValueError:
-        await message.reply_text("❌ Usage: <code>/kill &lt;character_id&gt;</code>")
+        result_msg = await add_all_characters_for_user(target_user_id)
+        await message.reply_text(result_msg, parse_mode='html')
+    except Exception as e:
+        logger.exception("Error in add_characters_command")
+        await message.reply_text("❌ An error occurred while adding characters.")
+
+
+# -------------------- /kill -------------------- #
+async def kill_character(receiver_id: int, character_id: str) -> str:
+    """Remove a character by id from a user's characters array."""
+    # ensure doc exists
+    await _ensure_user_doc(receiver_id)
+
+    res = await user_collection.update_one(
+        {'id': receiver_id},
+        {'$pull': {'characters': {'id': character_id}}}
+    )
+
+    if res.modified_count == 0:
+        raise ValueError("⚠️ Character was not present in user's collection.")
+    return f"🗑️ Removed character <code>{character_id}</code> from user <code>{receiver_id}</code>."
+
+
+@app.on_message(filters.command("kill") & filters.reply)
+async def remove_character_command(client, message: Message):
+    sender_id = message.from_user.id
+    if sender_id not in DEV_LIST:
+        await message.reply_text("⛔ You are not authorized to use this command.")
         return
 
+    if not message.reply_to_message or not message.reply_to_message.from_user:
+        await message.reply_text("⚠️ Reply to a user's message to remove a character from them.")
+        return
+
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.reply_text("❌ Usage: /kill <character_id>  (reply to target user's message)")
+        return
+
+    char_id = parts[1].strip()
     receiver_id = message.reply_to_message.from_user.id
 
     try:
-        result = await kill_character(receiver_id, character_id)
-        await message.reply_text(result)
-    except Exception as e:
-        logger.exception("Kill command error:")
-        await message.reply_text(f"❌ Error: {e}")
+        out = await kill_character(receiver_id, char_id)
+        await message.reply_text(out, parse_mode='html')
+    except ValueError as ve:
+        await message.reply_text(str(ve))
+    except Exception:
+        logger.exception("Error in remove_character_command")
+        await message.reply_text("❌ An unexpected error occurred while removing the character.")
