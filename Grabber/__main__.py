@@ -4,6 +4,7 @@ import random
 import re
 import asyncio
 from html import escape 
+import aiohttp
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import InlineKeyboardMarkup, InlineKeyboardButton
@@ -78,76 +79,55 @@ async def message_counter(update: Update, context: CallbackContext) -> None:
             
             message_counts[chat_id] = 0
             
+
+async def is_valid_url(url):
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.head(url, allow_redirects=True) as resp:
+                if resp.status == 200:
+                    content_type = resp.headers.get("Content-Type", "")
+                    return "image" in content_type or "octet-stream" in content_type
+                return False
+    except:
+        return False
+
+
 async def send_image(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
-
-    # Fetch all characters from DB
     all_characters = list(await collection.find({}).to_list(length=None))
 
     if not all_characters:
-        await update.message.reply_text("⚠️ No characters found in the database.")
+        await update.message.reply_text("⚠️ No characters in the database.")
         return
 
-    # Track sent characters to avoid repeats
     if chat_id not in sent_characters:
         sent_characters[chat_id] = []
 
     if len(sent_characters[chat_id]) == len(all_characters):
         sent_characters[chat_id] = []
 
-    # Pick a random new character
-    character = random.choice(
-        [c for c in all_characters if c.get('id') not in sent_characters[chat_id]]
-    )
-
-    sent_characters[chat_id].append(character.get('id'))
+    # pick a new character not sent before
+    character = random.choice([c for c in all_characters if c.get("id") not in sent_characters[chat_id]])
+    sent_characters[chat_id].append(character.get("id"))
     last_characters[chat_id] = character
 
     if chat_id in first_correct_guesses:
         del first_correct_guesses[chat_id]
 
-    # Try to detect a valid image URL from different possible keys
-    img_url = (
-        character.get("img_url")
-        or character.get("image")
-        or character.get("url")
-        or character.get("photo")
-        or None
-    )
+    img_url = character.get("img_url") or character.get("image") or character.get("url") or None
+    caption = f"A new {character.get('rarity','Unknown')} character appeared!\n/guess Character Name to add them to your harem!"
 
-    caption = (
-        f"A new {character.get('rarity', 'Unknown')} character appeared!\n"
-        f"/guess Character Name to add them to your harem!"
-    )
+    # Validate URL
+    if not img_url or not await is_valid_url(img_url):
+        # fallback placeholder
+        img_url = "https://i.imgur.com/placeholder.png"
+        caption += "\n⚠️ Original image missing or invalid, using placeholder."
 
     try:
-        if img_url:
-            try:
-                # ✅ Works for catbox, imgur, pixiv, etc.
-                await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=img_url,
-                    caption=caption,
-                    parse_mode="Markdown",
-                )
-            except Exception:
-                # Fallback: send as document if photo fails
-                await context.bot.send_document(
-                    chat_id=chat_id,
-                    document=img_url,
-                    caption=caption,
-                    parse_mode="Markdown",
-                )
-        else:
-            # No image available — fallback to text only
-            await update.message.reply_text(
-                f"{caption}\n\n⚠️ No image found for this character."
-            )
+        await context.bot.send_photo(chat_id=chat_id, photo=img_url, caption=caption, parse_mode="Markdown")
     except Exception as e:
-        print(f"[ERROR] Failed to send character image: {e}")
-        await update.message.reply_text(
-            f"❌ Error while sending character image.\nCharacter: {character.get('name', 'Unknown')}"
-        )
+        print(f"[ERROR] Failed to send character {character.get('name','Unknown')}: {e}")
+        await update.message.reply_text(f"❌ Failed to send character {character.get('name','Unknown')}.")
 
 
 async def guess(update: Update, context: CallbackContext) -> None:
