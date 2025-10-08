@@ -1,7 +1,7 @@
 import asyncio
 import random
 from datetime import datetime, timedelta
-from shivu import application, user_collection
+from Grabber import application, user_collection
 from telegram.ext import CommandHandler
 
 # Command handler for /rocket
