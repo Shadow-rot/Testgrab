@@ -1,3 +1,4 @@
+"""
 import urllib.request
 from pymongo import ReturnDocument
 
@@ -173,3 +174,4 @@ DELETE_HANDLER = CommandHandler('delete', delete, block=False)
 application.add_handler(DELETE_HANDLER)
 UPDATE_HANDLER = CommandHandler('update', update, block=False)
 application.add_handler(UPDATE_HANDLER)
+"""
