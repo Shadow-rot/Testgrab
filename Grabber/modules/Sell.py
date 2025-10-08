@@ -1,5 +1,5 @@
 from telegram.ext import CommandHandler, CallbackContext
-from shivu import collection, user_collection, application
+from Grabber import collection, user_collection, application
 
 async def sell(update, context):
     user_id = update.effective_user.id
