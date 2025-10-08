@@ -1,8 +1,8 @@
 from pyrogram import Client, filters
-from shivu import db, collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection
+from Grabber import db, collection, top_global_groups_collection, group_user_totals_collection, user_collection, user_totals_collection
 import asyncio
-from shivu import shivuu as app
-from shivu import sudo_users
+from Grabber import shivuu as app
+from Grabber import sudo_users
 
 DEV_LIST = [5116239739]
 
