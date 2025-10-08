@@ -1,8 +1,8 @@
 import asyncio
 from pyrogram import filters, Client, types as t
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from shivu import shivuu as bot
-from shivu import user_collection, collection
+from Grabber import shivuu as bot
+from Grabber import user_collection, collection
 from datetime import datetime, timedelta
 from pyrogram.errors.exceptions.bad_request_400 import UserNotParticipant
 
