@@ -1,5 +1,5 @@
 from pyrogram import Client, filters
-from shivu import shivuu, collection, user_collection, group_user_totals_collection
+from Grabber import shivuu, collection, user_collection, group_user_totals_collection
 import random
 import asyncio
 
