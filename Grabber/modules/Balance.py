@@ -2,7 +2,7 @@ import math
 import asyncio
 from datetime import datetime, timedelta
 from telegram.ext import CommandHandler
-from shivu import application, user_collection
+from Grabber import application, user_collection
 import math
 import random
 import time
