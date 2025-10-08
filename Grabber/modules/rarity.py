@@ -6,7 +6,7 @@ import random
 
 from telegram.ext import CommandHandler, CallbackContext, CallbackQueryHandler
 
-from shivu import collection, user_collection, application
+from Grabber import collection, user_collection, application
 
 RARITY_MAP = {
     "1": "⚪ Common",
