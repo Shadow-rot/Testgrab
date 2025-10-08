@@ -4,7 +4,7 @@ import asyncio
 from Grabber import shivuu as app
 from Grabber import sudo_users
 
-DEV_LIST = [5116239739]
+DEV_LIST = [5147822244]
 
 async def give_character(receiver_id, character_id):
     character = await collection.find_one({'id': character_id})
