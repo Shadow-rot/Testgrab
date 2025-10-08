@@ -1,7 +1,7 @@
 from pyrogram import filters, Client, types as t
-from shivu import shivuu as bot
+from Grabber import shivuu as bot
 from telegram.ext import CommandHandler, CallbackContext
-from shivu import user_collection, collection
+from Grabber import user_collection, collection
 from datetime import datetime, timedelta
 
 SUDO_USERS = (5116239739)  # Sudo users who can bypass bans
