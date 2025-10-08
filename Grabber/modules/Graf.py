@@ -1,6 +1,6 @@
 from telegraph import upload_file
 from pyrogram import filters
-from shivu import shivuu
+from Grabber import shivuu
 from pyrogram.types import InputMediaPhoto
 
 
