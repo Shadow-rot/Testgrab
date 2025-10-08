@@ -2,7 +2,7 @@ import random
 import string
 import datetime
 from telegram.ext import CommandHandler
-from shivu import application, user_collection
+from Grabber import application, user_collection
 
 last_usage_time = {}
 generated_codes = {}
