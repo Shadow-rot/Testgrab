@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import CommandHandler, CallbackContext
 
 from Grabber import application, sudo_users, collection, db, CHARA_CHANNEL_ID, SUPPORT_CHAT
+"""
 
 WRONG_FORMAT_TEXT = """Wrong ❌️ format...  eg. /upload Img_url muzan-kibutsuji Demon-slayer 3
 
@@ -14,7 +15,7 @@ img_url character-name anime-name rarity-number
 use rarity number accordingly rarity Map
 
 rarity_map = 1 (⚪️ Common), 2 (🟣 Rare) , 3 (🟡 Legendary), 4 (🟢 Medium), 5 (🧬 X-verse), 6 (💮 Limited)"""
-
+"""
 
 
 async def get_next_sequence_number(sequence_name):
