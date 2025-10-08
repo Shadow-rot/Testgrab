@@ -81,27 +81,73 @@ async def message_counter(update: Update, context: CallbackContext) -> None:
 async def send_image(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
 
+    # Fetch all characters from DB
     all_characters = list(await collection.find({}).to_list(length=None))
-    
+
+    if not all_characters:
+        await update.message.reply_text("⚠️ No characters found in the database.")
+        return
+
+    # Track sent characters to avoid repeats
     if chat_id not in sent_characters:
         sent_characters[chat_id] = []
 
     if len(sent_characters[chat_id]) == len(all_characters):
         sent_characters[chat_id] = []
 
-    character = random.choice([c for c in all_characters if c['id'] not in sent_characters[chat_id]])
+    # Pick a random new character
+    character = random.choice(
+        [c for c in all_characters if c.get('id') not in sent_characters[chat_id]]
+    )
 
-    sent_characters[chat_id].append(character['id'])
+    sent_characters[chat_id].append(character.get('id'))
     last_characters[chat_id] = character
 
     if chat_id in first_correct_guesses:
         del first_correct_guesses[chat_id]
 
-    await context.bot.send_photo(
-        chat_id=chat_id,
-        photo=character['img_url'],
-        caption=f"""A New {character['rarity']} Character Appeared...\n/guess Character Name and add in Your Harem""",
-        parse_mode='Markdown')
+    # Try to detect a valid image URL from different possible keys
+    img_url = (
+        character.get("img_url")
+        or character.get("image")
+        or character.get("url")
+        or character.get("photo")
+        or None
+    )
+
+    caption = (
+        f"A new {character.get('rarity', 'Unknown')} character appeared!\n"
+        f"/guess Character Name to add them to your harem!"
+    )
+
+    try:
+        if img_url:
+            try:
+                # ✅ Works for catbox, imgur, pixiv, etc.
+                await context.bot.send_photo(
+                    chat_id=chat_id,
+                    photo=img_url,
+                    caption=caption,
+                    parse_mode="Markdown",
+                )
+            except Exception:
+                # Fallback: send as document if photo fails
+                await context.bot.send_document(
+                    chat_id=chat_id,
+                    document=img_url,
+                    caption=caption,
+                    parse_mode="Markdown",
+                )
+        else:
+            # No image available — fallback to text only
+            await update.message.reply_text(
+                f"{caption}\n\n⚠️ No image found for this character."
+            )
+    except Exception as e:
+        print(f"[ERROR] Failed to send character image: {e}")
+        await update.message.reply_text(
+            f"❌ Error while sending character image.\nCharacter: {character.get('name', 'Unknown')}"
+        )
 
 
 async def guess(update: Update, context: CallbackContext) -> None:
