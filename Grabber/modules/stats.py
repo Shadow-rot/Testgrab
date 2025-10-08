@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import CommandHandler, CallbackContext
 
-from shivu import (application, PHOTO_URL, OWNER_ID,
+from Grabber import (application, PHOTO_URL, OWNER_ID,
                     user_collection, top_global_groups_collection, top_global_groups_collection, 
                     group_user_totals_collection)
 
