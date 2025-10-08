@@ -32,7 +32,7 @@ Reply to a photo/video/document and type:
 6 = 🧬 X-verse
 """
 
-# Generate unique sequential ID
+# Generate sequential ID
 async def get_next_sequence_number(sequence_name: str):
     seq_collection = db.sequences
     seq_doc = await seq_collection.find_one_and_update(
@@ -46,12 +46,12 @@ async def get_next_sequence_number(sequence_name: str):
     return seq_doc['sequence_value']
 
 
-# Check if URL is valid and accessible
+# Better URL validator — works with Catbox, Telegraph, Imgur, etc.
 async def is_valid_url(url: str):
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.head(url, timeout=10) as resp:
-                return resp.status in (200, 302)
+            async with session.get(url, timeout=10) as resp:
+                return resp.status == 200
     except Exception:
         return False
 
@@ -59,8 +59,6 @@ async def is_valid_url(url: str):
 # Main upload command
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-
-    # Permission check
     if str(user.id) not in sudo_users:
         await update.message.reply_text("⚠️ Ask my Sensei for permission.")
         return
@@ -81,7 +79,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await message.reply_text("❌ Invalid rarity number. Use 1–6.")
                 return
 
-            # Handle various media types
+            # Handle multiple media types
             file = None
             if reply.photo:
                 file = await reply.photo[-1].get_file()
@@ -89,8 +87,9 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 file = await reply.video.get_file()
             elif reply.document:
                 file = await reply.document.get_file()
-
-            if not file:
+            elif reply.animation:
+                file = await reply.animation.get_file()
+            else:
                 await message.reply_text("⚠️ Unsupported media type. Reply to photo/video/document.")
                 return
 
@@ -102,10 +101,9 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
             char_name = args[1].replace("-", " ").title()
             anime_name = args[2].replace("-", " ").title()
 
-            # Validate URL (supporting any domain)
             valid = await is_valid_url(img_url)
             if not valid:
-                await message.reply_text("❌ Invalid or inaccessible image URL.")
+                await message.reply_text("❌ Invalid or inaccessible image URL (check link).")
                 return
 
             try:
@@ -118,10 +116,10 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message.reply_html(WRONG_FORMAT)
             return
 
-        # === Generate New Character ID ===
+        # === Generate ID ===
         char_id = str(await get_next_sequence_number("character_id")).zfill(3)
 
-        # === Character Object ===
+        # === Character Data ===
         character = {
             "img_url": img_url,
             "name": char_name,
@@ -130,7 +128,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "id": char_id
         }
 
-        # === Send to Character Channel ===
+        # === Send to Channel ===
         try:
             msg = await context.bot.send_photo(
                 chat_id=CHARA_CHANNEL_ID,
@@ -153,7 +151,7 @@ async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message.reply_text(f"⚠️ Added to DB but failed to send to channel.\nError: {e}")
 
     except Exception as e:
-        await message.reply_text(f"❌ Upload failed.\nError: {e}\nIf issue persists, contact {SUPPORT_CHAT}")
+        await message.reply_text(f"❌ Upload failed.\nError: {e}\nContact {SUPPORT_CHAT}")
 
 
 UPLOAD_HANDLER = CommandHandler("upload", upload)
