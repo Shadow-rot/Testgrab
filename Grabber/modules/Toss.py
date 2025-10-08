@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import CommandHandler
 import random
 import asyncio
-from shivu import application, user_collection
+from Grabber import application, user_collection
 
 # Dictionary to store user's items
 user_data = {
