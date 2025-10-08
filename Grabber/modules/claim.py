@@ -5,7 +5,7 @@ from Grabber import user_collection, collection
 import time
 from datetime import datetime, timedelta
 
-DEVS = (5116239739)
+DEVS = (5147822244)
 
 async def get_unique_characters(receiver_id, target_rarities=['🟢 Common', '🟣 Rare', '🟡 Legendary']):
     try:
