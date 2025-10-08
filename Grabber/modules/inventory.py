@@ -1,5 +1,5 @@
 from pyrogram import Client
-from shivu.Database.db import get_user_data
+from Grabber.Database.db import get_user_data
 
 def get_inventory(user_id):
     user_data = get_user_data(user_id)
