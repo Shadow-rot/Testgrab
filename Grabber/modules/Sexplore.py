@@ -1,6 +1,6 @@
 import random
 from telegram.ext import CommandHandler, CallbackContext
-from shivu import application, user_collection
+from Grabber import application, user_collection
 from datetime import datetime, timedelta
 
 # Define a cooldown duration in seconds (1 minute in this case)
