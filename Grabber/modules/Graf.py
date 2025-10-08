@@ -1,3 +1,4 @@
+"""
 from telegraph import upload_file
 from pyrogram import filters
 from Grabber import shivuu
@@ -29,3 +30,4 @@ def ul(_, message):
             url = "https://graph.org" + x
 
         i.edit(f'Yᴏᴜʀ ʟɪɴᴋ sᴜᴄᴄᴇssғᴜʟ Gᴇɴ {url}')
+"""
