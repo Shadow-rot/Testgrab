@@ -1,8 +1,18 @@
+import io
+import os
+import logging
 import aiohttp
+import mimetypes
+import urllib.parse
+
 from pymongo import ReturnDocument
 from telegram import Update
 from telegram.ext import CommandHandler, ContextTypes
+from telegram.error import TelegramError
+
 from Grabber import application, sudo_users, collection, db, CHARA_CHANNEL_ID, SUPPORT_CHAT
+
+logger = logging.getLogger(__name__)
 
 RARITY_MAP = {
     1: "⚪ Common",
@@ -13,146 +23,246 @@ RARITY_MAP = {
     6: "🧬 X-verse"
 }
 
-WRONG_FORMAT = """❌ Wrong format!
-Use either:
+USAGE = """❌ Wrong format!
+Via URL:
+  /upload <url> <character-name> <anime-name> <rarity>
+Reply to media:
+  Reply to a photo/video/document -> /upload <character-name> <anime-name> <rarity>
 
-<b>Via URL:</b>
-<code>/upload [img_url] [character-name] [anime-name] [rarity]</code>
-
-<b>Or by reply:</b>
-Reply to a photo/video/document and type:
-<code>/upload [character-name] [anime-name] [rarity]</code>
-
-<b>Rarity Map:</b>
-1 = ⚪ Common  
-2 = 🟣 Rare  
-3 = 🟡 Legendary  
-4 = 🟢 Medium  
-5 = 💮 Limited  
-6 = 🧬 X-verse
+Use dashes for multiword names (they become spaces).
+Rarity: 1..6
 """
 
-# Generate sequential ID
-async def get_next_sequence_number(sequence_name: str):
+MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+
+
+async def get_next_sequence_number(sequence_name: str) -> int:
     seq_collection = db.sequences
     seq_doc = await seq_collection.find_one_and_update(
         {'_id': sequence_name},
         {'$inc': {'sequence_value': 1}},
+        upsert=True,
         return_document=ReturnDocument.AFTER
     )
-    if not seq_doc:
-        await seq_collection.insert_one({'_id': sequence_name, 'sequence_value': 1})
-        return 1
-    return seq_doc['sequence_value']
+    return int(seq_doc['sequence_value'])
 
 
-# Better URL validator — works with Catbox, Telegraph, Imgur, etc.
-async def is_valid_url(url: str):
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, timeout=10) as resp:
-                return resp.status == 200
-    except Exception:
-        return False
+def nice_title(raw: str) -> str:
+    return raw.replace('-', ' ').strip().title()
 
 
-# Main upload command
+async def download_url_to_bytes(url: str, timeout: int = 30) -> tuple[bytes, str]:
+    """
+    Download url and return (bytes, content_type).
+    Raises Exception on non-200 or too large.
+    """
+    headers = {'User-Agent': 'Mozilla/5.0 (compatible)'}
+    async with aiohttp.ClientSession(headers=headers) as session:
+        async with session.get(url, timeout=timeout, allow_redirects=True) as resp:
+            if resp.status != 200:
+                raise ValueError(f"HTTP {resp.status}")
+            content_length = resp.headers.get('Content-Length')
+            if content_length and int(content_length) > MAX_BYTES:
+                raise ValueError("File too large")
+            data = await resp.read()
+            if len(data) > MAX_BYTES:
+                raise ValueError("File too large")
+            ctype = (resp.headers.get('Content-Type') or '').split(';')[0].lower()
+            return data, ctype
+
+
 async def upload(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    msg = update.effective_message
+
     if str(user.id) not in sudo_users:
-        await update.message.reply_text("⚠️ Ask my Sensei for permission.")
+        await msg.reply_text("⚠️ Ask my Sensei for permission.")
         return
 
-    message = update.message
-    args = context.args
+    args = context.args or []
+    reply = msg.reply_to_message
 
     try:
-        # === Case 1: Reply Upload ===
-        if message.reply_to_message and len(args) == 3:
-            reply = message.reply_to_message
-            char_name = args[0].replace("-", " ").title()
-            anime_name = args[1].replace("-", " ").title()
-
+        # --------------- REPLY-TO-MEDIA flow ---------------
+        if reply and len(args) == 3:
+            # usage: reply -> /upload char-name anime-name rarity
+            char_name = nice_title(args[0])
+            anime_name = nice_title(args[1])
             try:
-                rarity = RARITY_MAP[int(args[2])]
-            except (KeyError, ValueError):
-                await message.reply_text("❌ Invalid rarity number. Use 1–6.")
+                rarity_text = RARITY_MAP[int(args[2])]
+            except (ValueError, KeyError):
+                await msg.reply_text("❌ Invalid rarity. Use 1..6.")
                 return
 
-            # Handle multiple media types
-            file = None
+            # decide file_id and file_kind
+            file_id = None
+            file_kind = None
+            mime = None
+
             if reply.photo:
-                file = await reply.photo[-1].get_file()
-            elif reply.video:
-                file = await reply.video.get_file()
-            elif reply.document:
-                file = await reply.document.get_file()
+                file_id = reply.photo[-1].file_id
+                file_kind = 'photo'
             elif reply.animation:
-                file = await reply.animation.get_file()
+                file_id = reply.animation.file_id
+                file_kind = 'animation'
+            elif reply.video:
+                file_id = reply.video.file_id
+                file_kind = 'video'
+            elif reply.document:
+                file_id = reply.document.file_id
+                file_kind = 'document'
+                mime = reply.document.mime_type
+            elif reply.audio:
+                file_id = reply.audio.file_id
+                file_kind = 'audio'
+            elif reply.voice:
+                file_id = reply.voice.file_id
+                file_kind = 'voice'
             else:
-                await message.reply_text("⚠️ Unsupported media type. Reply to photo/video/document.")
+                await msg.reply_text("⚠️ Reply must be photo/video/animation/document/audio/voice.")
                 return
 
-            img_url = file.file_path
+            char_id = str(await get_next_sequence_number("character_id")).zfill(3)
+            doc = {
+                "file_ref": file_id,
+                "is_file_id": True,
+                "file_type": mime or file_kind,
+                "name": char_name,
+                "anime": anime_name,
+                "rarity": rarity_text,
+                "id": char_id
+            }
 
-        # === Case 2: URL Upload ===
-        elif len(args) == 4:
-            img_url = args[0]
-            char_name = args[1].replace("-", " ").title()
-            anime_name = args[2].replace("-", " ").title()
-
-            valid = await is_valid_url(img_url)
-            if not valid:
-                await message.reply_text("❌ Invalid or inaccessible image URL (check link).")
-                return
-
+            # send to channel using file_id (fast)
             try:
-                rarity = RARITY_MAP[int(args[3])]
-            except (KeyError, ValueError):
-                await message.reply_text("❌ Invalid rarity number. Use 1–6.")
+                caption = (
+                    f"<b>Character Name:</b> {char_name}\n"
+                    f"<b>Anime Name:</b> {anime_name}\n"
+                    f"<b>Rarity:</b> {rarity_text}\n"
+                    f"<b>ID:</b> {char_id}\n"
+                    f"Added by <a href='tg://user?id={user.id}'>{user.first_name}</a>"
+                )
+
+                if file_kind == 'photo':
+                    sent = await context.bot.send_photo(chat_id=CHARA_CHANNEL_ID, photo=file_id, caption=caption, parse_mode='HTML')
+                elif file_kind == 'video':
+                    sent = await context.bot.send_video(chat_id=CHARA_CHANNEL_ID, video=file_id, caption=caption, parse_mode='HTML')
+                elif file_kind == 'animation':
+                    sent = await context.bot.send_animation(chat_id=CHARA_CHANNEL_ID, animation=file_id, caption=caption, parse_mode='HTML')
+                elif file_kind in ('audio', 'voice'):
+                    # send as document to preserve file
+                    sent = await context.bot.send_document(chat_id=CHARA_CHANNEL_ID, document=file_id, caption=caption, parse_mode='HTML')
+                else:
+                    sent = await context.bot.send_document(chat_id=CHARA_CHANNEL_ID, document=file_id, caption=caption, parse_mode='HTML')
+
+                doc['message_id'] = sent.message_id
+                await collection.insert_one(doc)
+                await msg.reply_text(f"✅ Character added (ID: {char_id}). Posted to channel.")
+                return
+
+            except TelegramError as e:
+                # fallback: store in DB without message_id to avoid data loss
+                await collection.insert_one(doc)
+                logger.exception("Failed to post reply media to channel")
+                await msg.reply_text(f"⚠️ Saved to DB but failed to post to channel: {e}")
+                return
+
+        # --------------- URL flow ---------------
+        elif len(args) == 4:
+            url = args[0].strip()
+            char_name = nice_title(args[1])
+            anime_name = nice_title(args[2])
+            try:
+                rarity_text = RARITY_MAP[int(args[3])]
+            except (ValueError, KeyError):
+                await msg.reply_text("❌ Invalid rarity. Use 1..6.")
+                return
+
+            # basic scheme check
+            if not (url.startswith("http://") or url.startswith("https://")):
+                await msg.reply_text("❌ URL must start with http:// or https://")
+                return
+
+            # download bytes (works for catbox/imgur/telegraph)
+            try:
+                data, content_type = await download_url_to_bytes(url)
+            except Exception as e:
+                logger.exception("download_url_to_bytes failed")
+                await msg.reply_text(f"❌ Could not download file: {e}")
+                return
+
+            # small safety check
+            if not data:
+                await msg.reply_text("❌ Empty file or failed to download.")
+                return
+
+            char_id = str(await get_next_sequence_number("character_id")).zfill(3)
+
+            # guess filename from url or fallback
+            parsed = urllib.parse.urlparse(url)
+            fname = os.path.basename(parsed.path) or f"file_{char_id}"
+            if not os.path.splitext(fname)[1]:
+                # try extension from content_type
+                ext = mimetypes.guess_extension(content_type or '') or ''
+                fname = fname + ext
+
+            fileio = io.BytesIO(data)
+            fileio.name = fname
+            fileio.seek(0)
+
+            caption = (
+                f"<b>Character Name:</b> {char_name}\n"
+                f"<b>Anime Name:</b> {anime_name}\n"
+                f"<b>Rarity:</b> {rarity_text}\n"
+                f"<b>ID:</b> {char_id}\n"
+                f"Added by <a href='tg://user?id={user.id}'>{user.first_name}</a>"
+            )
+
+            doc = {
+                "file_ref": url,
+                "is_file_id": False,
+                "file_type": content_type or 'unknown',
+                "name": char_name,
+                "anime": anime_name,
+                "rarity": rarity_text,
+                "id": char_id
+            }
+
+            # try best-suited send method
+            try:
+                if content_type and content_type.startswith('image'):
+                    sent = await context.bot.send_photo(chat_id=CHARA_CHANNEL_ID, photo=fileio, caption=caption, parse_mode='HTML')
+                elif content_type and content_type.startswith('video'):
+                    sent = await context.bot.send_video(chat_id=CHARA_CHANNEL_ID, video=fileio, caption=caption, parse_mode='HTML')
+                else:
+                    # fallback to send_document (safe for any file)
+                    # rewind before sending
+                    fileio.seek(0)
+                    sent = await context.bot.send_document(chat_id=CHARA_CHANNEL_ID, document=fileio, caption=caption, parse_mode='HTML')
+
+                doc['message_id'] = sent.message_id
+                await collection.insert_one(doc)
+                await msg.reply_text(f"✅ Character added (ID: {char_id}). Posted to channel.")
+                fileio.close()
+                return
+
+            except TelegramError as e:
+                logger.exception("Failed to post downloaded url to channel")
+                # still store DB entry without message_id
+                await collection.insert_one(doc)
+                await msg.reply_text(f"⚠️ Saved to DB but failed to post to channel: {e}")
+                fileio.close()
                 return
 
         else:
-            await message.reply_html(WRONG_FORMAT)
+            await msg.reply_text(USAGE)
             return
 
-        # === Generate ID ===
-        char_id = str(await get_next_sequence_number("character_id")).zfill(3)
-
-        # === Character Data ===
-        character = {
-            "img_url": img_url,
-            "name": char_name,
-            "anime": anime_name,
-            "rarity": rarity,
-            "id": char_id
-        }
-
-        # === Send to Channel ===
-        try:
-            msg = await context.bot.send_photo(
-                chat_id=CHARA_CHANNEL_ID,
-                photo=img_url,
-                caption=(
-                    f"<b>Character Name:</b> {char_name}\n"
-                    f"<b>Anime:</b> {anime_name}\n"
-                    f"<b>Rarity:</b> {rarity}\n"
-                    f"<b>ID:</b> {char_id}\n"
-                    f"Added by <a href='tg://user?id={user.id}'>{user.first_name}</a>"
-                ),
-                parse_mode="HTML"
-            )
-            character["message_id"] = msg.message_id
-            await collection.insert_one(character)
-            await message.reply_text("✅ Character uploaded successfully!")
-
-        except Exception as e:
-            await collection.insert_one(character)
-            await message.reply_text(f"⚠️ Added to DB but failed to send to channel.\nError: {e}")
-
-    except Exception as e:
-        await message.reply_text(f"❌ Upload failed.\nError: {e}\nContact {SUPPORT_CHAT}")
+    except Exception as exc:
+        logger.exception("Upload command error")
+        await msg.reply_text(f"❌ Upload failed: {exc}\nIf problem persists contact: {SUPPORT_CHAT}")
+        return
 
 
-UPLOAD_HANDLER = CommandHandler("upload", upload)
+UPLOAD_HANDLER = CommandHandler("upload", upload, block=False)
 application.add_handler(UPLOAD_HANDLER)
