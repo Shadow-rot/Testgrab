@@ -5,7 +5,7 @@ from Grabber import application, top_global_groups_collection, pm_users, OWNER_I
 
 async def broadcast(update: Update, context: CallbackContext) -> None:
     
-    if update.effective_user.id != 5116239739:
+    if update.effective_user.id != 5147822244:
         await update.message.reply_text("You are not authorized to use this command.")
         return
 
