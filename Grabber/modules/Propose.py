@@ -4,8 +4,8 @@ import random
 
 from pyrogram import filters, Client, types as t
 
-from shivu import shivuu as bot
-from shivu import user_collection, collection
+from Grabber import shivuu as bot
+from Grabber import user_collection, collection
 
 DEVS = (5116239739)
 
