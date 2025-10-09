@@ -80,24 +80,12 @@ async def message_counter(update: Update, context: CallbackContext) -> None:
             message_counts[chat_id] = 0
             
 
-async def is_valid_url(url):
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.head(url, allow_redirects=True) as resp:
-                if resp.status == 200:
-                    content_type = resp.headers.get("Content-Type", "")
-                    return "image" in content_type or "octet-stream" in content_type
-                return False
-    except:
-        return False
-
-
 async def send_image(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
     all_characters = list(await collection.find({}).to_list(length=None))
 
     if not all_characters:
-        await update.message.reply_text("⚠️ No characters in the database.")
+        await update.message.reply_text("⚠️ No characters found in the database.")
         return
 
     if chat_id not in sent_characters:
@@ -106,29 +94,45 @@ async def send_image(update: Update, context: CallbackContext) -> None:
     if len(sent_characters[chat_id]) == len(all_characters):
         sent_characters[chat_id] = []
 
-    # pick a new character not sent before
-    character = random.choice([c for c in all_characters if c.get("id") not in sent_characters[chat_id]])
+    # Pick a random new character
+    available = [c for c in all_characters if c.get("id") not in sent_characters[chat_id]]
+    if not available:
+        await update.message.reply_text("⚠️ No new characters available right now.")
+        return
+
+    character = random.choice(available)
     sent_characters[chat_id].append(character.get("id"))
     last_characters[chat_id] = character
 
     if chat_id in first_correct_guesses:
         del first_correct_guesses[chat_id]
 
-    img_url = character.get("img_url") or character.get("image") or character.get("url") or None
-    caption = f"A new {character.get('rarity','Unknown')} character appeared!\n/guess Character Name to add them to your harem!"
+    # Try to get image from any valid field
+    img_url = (
+        character.get("img_url")
+        or character.get("image")
+        or character.get("url")
+        or character.get("photo")
+        or character.get("img")
+        or character.get("thumbnail")
+    )
 
-    # Validate URL
-    if not img_url or not await is_valid_url(img_url):
-        # fallback placeholder
-        img_url = "https://i.imgur.com/placeholder.png"
-        caption += "\n⚠️ Original image missing or invalid, using placeholder."
+    caption = (
+        f"A new *{character.get('rarity', 'Unknown')}* character appeared!\n"
+        f"Guess their name using /guess <name> to add them to your harem!"
+    )
 
     try:
-        await context.bot.send_photo(chat_id=chat_id, photo=img_url, caption=caption, parse_mode="Markdown")
+        await context.bot.send_photo(
+            chat_id=chat_id,
+            photo=img_url,
+            caption=caption,
+            parse_mode="Markdown",
+        )
+        print(f"[✅ SENT] Character: {character.get('name','Unknown')} | URL: {img_url}")
     except Exception as e:
-        print(f"[ERROR] Failed to send character {character.get('name','Unknown')}: {e}")
+        print(f"[❌ ERROR] Failed to send {character.get('name','Unknown')} — {e}")
         await update.message.reply_text(f"❌ Failed to send character {character.get('name','Unknown')}.")
-
 
 async def guess(update: Update, context: CallbackContext) -> None:
     chat_id = update.effective_chat.id
