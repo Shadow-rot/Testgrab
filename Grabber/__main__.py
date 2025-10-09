@@ -37,6 +37,10 @@ def escape_markdown(text):
 
 
 async def message_counter(update: Update, context: CallbackContext) -> None:
+    # Ignore updates without user info (system messages, etc.)
+    if not update.effective_user or not update.effective_chat:
+        return
+
     chat_id = str(update.effective_chat.id)
     user_id = update.effective_user.id
 
