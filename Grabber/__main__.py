@@ -461,10 +461,11 @@ def main() -> None:
         # Add inline query handler for collections
         application.add_handler(InlineQueryHandler(inline_query, block=False))
         
-        # Add message handler for counting - use explicit filters for PTB v20+
+        # Add message handler for counting - use filters that catch most message types
         application.add_handler(
             MessageHandler(
-                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Sticker.ALL | filters.Document.ALL | filters.VOICE | filters.AUDIO | filters.Animation.ALL,
+                (filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Sticker.ALL | 
+                 filters.Document.ALL | filters.VOICE | filters.AUDIO | filters.ANIMATION),
                 message_counter, 
                 block=False
             )
