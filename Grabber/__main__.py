@@ -5,9 +5,8 @@ import re
 import asyncio
 from html import escape 
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, InlineQueryResultArticle, InputTextMessageContent
 from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filters, InlineQueryHandler
-from telegram import InlineQueryResultArticle, InputTextMessageContent
 
 from Grabber import (
     collection, 
@@ -17,9 +16,6 @@ from Grabber import (
     user_totals_collection, 
     shivuu,
     application, 
-    SUPPORT_CHAT, 
-    UPDATE_CHAT, 
-    db, 
     LOGGER
 )
 from Grabber.modules import ALL_MODULES
@@ -468,7 +464,7 @@ def main() -> None:
         # Add message handler for counting - use explicit filters for PTB v20+
         application.add_handler(
             MessageHandler(
-                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.STICKER | filters.Document.ALL | filters.VOICE,
+                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.Sticker.ALL | filters.Document.ALL | filters.VOICE | filters.AUDIO | filters.Animation.ALL,
                 message_counter, 
                 block=False
             )
