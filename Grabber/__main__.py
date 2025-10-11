@@ -6,7 +6,8 @@ import asyncio
 from html import escape 
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filters
+from telegram.ext import CommandHandler, CallbackContext, MessageHandler, filters, InlineQueryHandler
+from telegram import InlineQueryResultArticle, InputTextMessageContent
 
 from Grabber import (
     collection, 
@@ -52,8 +53,12 @@ def escape_markdown(text):
 async def message_counter(update: Update, context: CallbackContext) -> None:
     """Count messages and trigger character spawn"""
     try:
-        # Ignore updates without user info
+        # Ignore updates without user info or message
         if not update.effective_user or not update.effective_chat or not update.message:
+            return
+        
+        # Ignore bot messages
+        if update.effective_user.is_bot:
             return
 
         chat_id = str(update.effective_chat.id)
@@ -65,7 +70,7 @@ async def message_counter(update: Update, context: CallbackContext) -> None:
         lock = locks[chat_id]
 
         async with lock:
-            # Get message frequency for this chat
+            # Get message frequency for this chat (using Motor async)
             chat_frequency = await user_totals_collection.find_one({'chat_id': chat_id})
             message_frequency = chat_frequency.get('message_frequency', 100) if chat_frequency else 100
 
@@ -105,8 +110,9 @@ async def send_image(update: Update, context: CallbackContext) -> None:
     try:
         chat_id = update.effective_chat.id
         
-        # Fetch all characters from database
-        all_characters = await collection.find({}).to_list(length=None)
+        # Fetch all characters from database using Motor async
+        cursor = collection.find({})
+        all_characters = await cursor.to_list(length=None)
 
         if not all_characters:
             await update.message.reply_text("⚠️ No characters found in the database.")
@@ -155,10 +161,10 @@ async def send_image(update: Update, context: CallbackContext) -> None:
         # Prepare caption
         caption = (
             f"🎭 A new *{character.get('rarity', 'Unknown')}* character appeared!\n\n"
-            f"Guess their name using `/guess <name>` to add them to your harem!"
+            f"Guess their name using /guess <name> to add them to your harem!"
         )
 
-        # Send character image
+        # Send character image using async bot
         await context.bot.send_photo(
             chat_id=chat_id,
             photo=img_url,
@@ -196,7 +202,7 @@ async def guess(update: Update, context: CallbackContext) -> None:
         guess = ' '.join(context.args).lower().strip() if context.args else ''
         
         if not guess:
-            await update.message.reply_text("❌ Please provide a character name. Usage: `/guess <name>`", parse_mode="Markdown")
+            await update.message.reply_text("❌ Please provide a character name. Usage: /guess <name>")
             return
 
         # Check for invalid characters in guess
@@ -221,7 +227,7 @@ async def guess(update: Update, context: CallbackContext) -> None:
             # Mark as correctly guessed
             first_correct_guesses[chat_id] = user_id
 
-            # Update or create user document
+            # Update or create user document (Motor async)
             user = await user_collection.find_one({'id': user_id})
             
             if user:
@@ -248,9 +254,10 @@ async def guess(update: Update, context: CallbackContext) -> None:
                     'username': getattr(update.effective_user, 'username', None),
                     'first_name': update.effective_user.first_name,
                     'characters': [character],
+                    'favorites': []
                 })
 
-            # Update group user totals
+            # Update group user totals (Motor async)
             group_user_total = await group_user_totals_collection.find_one({
                 'user_id': user_id, 
                 'group_id': chat_id
@@ -286,7 +293,7 @@ async def guess(update: Update, context: CallbackContext) -> None:
                     'count': 1,
                 })
 
-            # Update global group stats
+            # Update global group stats (Motor async)
             group_info = await top_global_groups_collection.find_one({'group_id': chat_id})
             
             if group_info:
@@ -310,7 +317,7 @@ async def guess(update: Update, context: CallbackContext) -> None:
                     'count': 1,
                 })
 
-            # Create inline keyboard for harem
+            # Create inline keyboard - only if inline handler exists
             keyboard = [[
                 InlineKeyboardButton(
                     "📋 See Harem", 
@@ -351,12 +358,12 @@ async def fav(update: Update, context: CallbackContext) -> None:
 
         # Check if character ID was provided
         if not context.args:
-            await update.message.reply_text('❌ Please provide a character ID.\nUsage: `/fav <character_id>`', parse_mode="Markdown")
+            await update.message.reply_text('❌ Please provide a character ID.\nUsage: /fav <character_id>')
             return
 
         character_id = context.args[0]
 
-        # Get user from database
+        # Get user from database (Motor async)
         user = await user_collection.find_one({'id': user_id})
         
         if not user:
@@ -380,8 +387,7 @@ async def fav(update: Update, context: CallbackContext) -> None:
         )
 
         await update.message.reply_text(
-            f'⭐ Character **{character.get("name", "Unknown")}** has been set as your favorite!',
-            parse_mode="Markdown"
+            f'⭐ Character {character.get("name", "Unknown")} has been set as your favorite!'
         )
         
         LOGGER.info(f"User {user_id} set {character.get('name')} as favorite")
@@ -389,6 +395,58 @@ async def fav(update: Update, context: CallbackContext) -> None:
     except Exception as e:
         LOGGER.error(f"Error in fav command: {e}")
         await update.message.reply_text("❌ An error occurred. Please try again.")
+
+
+async def inline_query(update: Update, context: CallbackContext) -> None:
+    """Handle inline queries for user collections"""
+    try:
+        query = update.inline_query.query
+        
+        if not query.startswith("collection."):
+            return
+        
+        # Extract user ID from query
+        try:
+            user_id = int(query.split(".")[1])
+        except (IndexError, ValueError):
+            return
+        
+        # Get user from database (Motor async)
+        user = await user_collection.find_one({'id': user_id})
+        
+        if not user or not user.get('characters'):
+            results = [
+                InlineQueryResultArticle(
+                    id='no_chars',
+                    title='No Characters',
+                    input_message_content=InputTextMessageContent(
+                        message_text='This user has no characters yet.'
+                    )
+                )
+            ]
+            await update.inline_query.answer(results)
+            return
+        
+        # Build results from user's characters
+        results = []
+        for idx, char in enumerate(user.get('characters', [])[:50]):  # Limit to 50
+            results.append(
+                InlineQueryResultArticle(
+                    id=f'char_{idx}',
+                    title=char.get('name', 'Unknown'),
+                    description=f"{char.get('anime', 'Unknown')} - {char.get('rarity', 'Unknown')}",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"📛 {char.get('name', 'Unknown')}\n"
+                                   f"🎬 {char.get('anime', 'Unknown')}\n"
+                                   f"⭐ {char.get('rarity', 'Unknown')}"
+                    )
+                )
+            )
+        
+        await update.inline_query.answer(results)
+        
+    except Exception as e:
+        LOGGER.error(f"Error in inline_query: {e}")
 
 
 def main() -> None:
@@ -404,17 +462,20 @@ def main() -> None:
         )
         application.add_handler(CommandHandler("fav", fav, block=False))
         
-        # Add message handler for counting
+        # Add inline query handler for collections
+        application.add_handler(InlineQueryHandler(inline_query, block=False))
+        
+        # Add message handler for counting - use explicit filters for PTB v20+
         application.add_handler(
             MessageHandler(
-                filters.ALL, 
+                filters.TEXT | filters.PHOTO | filters.VIDEO | filters.STICKER | filters.Document.ALL | filters.VOICE,
                 message_counter, 
                 block=False
             )
         )
 
         LOGGER.info("Starting bot polling...")
-        application.run_polling(drop_pending_updates=True)
+        application.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
         
     except Exception as e:
         LOGGER.error(f"Error in main: {e}")
@@ -423,7 +484,13 @@ def main() -> None:
 
 if __name__ == "__main__":
     try:
-        shivuu.start()
+        # Start pyrogram client if it's async compatible
+        if asyncio.iscoroutinefunction(shivuu.start):
+            asyncio.get_event_loop().run_until_complete(shivuu.start())
+        else:
+            # If shivuu.start() is blocking, run it in a separate thread or handle accordingly
+            shivuu.start()
+        
         LOGGER.info("✅ Bot started successfully")
         main()
     except KeyboardInterrupt:
