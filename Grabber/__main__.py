@@ -481,17 +481,29 @@ def main() -> None:
 
 if __name__ == "__main__":
     try:
-        # Start pyrogram client if it's async compatible
-        if asyncio.iscoroutinefunction(shivuu.start):
-            asyncio.get_event_loop().run_until_complete(shivuu.start())
-        else:
-            # If shivuu.start() is blocking, run it in a separate thread or handle accordingly
-            shivuu.start()
+        # Start pyrogram client asynchronously if needed
+        # Comment out or remove if shivuu is not needed for this bot
+        # If shivuu is needed, it should be started in its own async context
+        try:
+            if hasattr(shivuu, 'start') and callable(shivuu.start):
+                if asyncio.iscoroutinefunction(shivuu.start):
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(shivuu.start())
+                else:
+                    import threading
+                    # Run pyrogram in separate thread to avoid blocking
+                    pyrogram_thread = threading.Thread(target=shivuu.start, daemon=True)
+                    pyrogram_thread.start()
+                    time.sleep(2)  # Give it time to start
+        except Exception as shivuu_error:
+            LOGGER.warning(f"Could not start shivuu client: {shivuu_error}")
+            LOGGER.info("Continuing without shivuu...")
         
         LOGGER.info("✅ Bot started successfully")
         main()
     except KeyboardInterrupt:
         LOGGER.info("Bot stopped by user")
     except Exception as e:
-        LOGGER.error(f"Fatal error: {e}")
+        LOGGER.error(f"Fatal error: {e}", exc_info=True)
         raise
